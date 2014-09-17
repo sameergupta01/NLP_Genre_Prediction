@@ -1,0 +1,119 @@
+import sqlite3
+
+
+db = sqlite3.connect('/Users/sameergupta/Desktop/mxm_dataset.db')
+db_lastfm = sqlite3.connect('/Users/sameergupta/Desktop/lastfm_tags.db')
+
+#for MXM db
+cursor1 = db.cursor()
+cursor2 = db.cursor()
+
+#for lasft.fm db
+cursor3 = db_lastfm.cursor()
+
+#get all distinct track_ids
+cursor1.execute('SELECT distinct(track_id) from lyrics where is_test=0')
+
+track_id_rows = cursor1.fetchall()
+main_list = [];
+count_main = 0
+
+#write a file with word_text and word_number
+f = open('../myfile','w')
+cursor4 = db.cursor()
+cursor4.execute("SELECT word from words")
+word_rows = cursor4.fetchall()
+counter = 1
+'''
+for word_row in word_rows:
+    f.write(str(counter))
+    f.write(str(" "))
+    try:
+        f.write(str(word_row[0]))
+    except:
+        f.write(word_row[0].encode('utf-8').strip())
+    f.write("\n")
+    counter = counter+1
+'''
+#handler for feature vector file
+f = open('../my_feature_vector','w')
+
+files_processed = 0;
+#each genre will have 4k training data and 1k test data
+genre_count = {'5':0,'38':0,'95':0,'138':0,'238':0,'1149':0}
+for track_id_row in track_id_rows:
+    files_processed = files_processed + 1
+    #print('************')
+    #print(track_id_row)
+    #print(track_id_row[0])
+    #print('**********')
+    #get all frequency data corresponding to each track_id
+    cursor2.execute('''SELECT word,count from lyrics where track_id=?''',(track_id_row[0],))
+    #5=pop, 38=indie, 95=rock, 138=electronic, 238=love, 1149=Classical
+    cursor3.execute('''SELECT tag from tid_tag INNER JOIN tids ON tid_tag.tid = tids.ROWID where tid_tag.tag in (5,38,95,138,238) and tids.tid = ?''',(track_id_row[0],))
+    frequency_rows = cursor2.fetchall()
+    tag_rows = cursor3.fetchall()
+
+    print("len: "+str(len(tag_rows)))
+
+    if(len(tag_rows) != 1):
+        continue
+
+    tag_row = tag_rows[0]
+    print(str(genre_count['5'])+" "+str(genre_count['38'])+" "+str(+genre_count['95'])+" "+str(genre_count['138'])+" "+str(genre_count['238'])+" "+str(genre_count['1149'])+"\n")
+    if(genre_count['5'] > 500 and genre_count['38'] > 500 and genre_count['95'] > 500 and genre_count['138'] > 500 and genre_count['238'] > 500):
+        break
+    #put limit on each type of genre
+    if(genre_count.has_key(str(tag_row[0]))):
+        if(genre_count[str(tag_row[0])] > 501):
+           continue
+        else:
+            genre_count[str(tag_row[0])] = genre_count[str(tag_row[0])] + 1
+
+    #create a hash for cursor2 with key=word and value=count
+    words_hash = {}
+    for frequency_row in frequency_rows:
+        words_hash[frequency_row[0]] = frequency_row[1]
+    #create a feature vector...write it to a file
+
+    #trackid word_frequency
+    #f.write(str(track_id_row[0]))
+
+    #tag
+    f.write(str(tag_row[0]))
+
+    words_index = 1
+    for word in word_rows:
+        #print(word[0])
+        #print(len(word[0]))
+        if(len(word[0]) < 4):
+            words_index = words_index + 1
+            continue
+        #remove this if condition to get zero frequency printed
+        #if(words_hash.has_key(word[0]) > 0):
+        f.write(" ")
+
+        #write the word_text
+        '''try:
+            f.write(str(word[0]))
+        except:
+            f.write(word[0].encode('utf-8').strip())'''
+
+        #write the word_index
+        #f.write(str(words_index))
+
+        #delim between word and frequency
+        #f.write(":")
+
+        #word frequency
+        if(words_hash.has_key(word[0])):
+            f.write(str(words_hash[word[0]]))
+        else:
+            f.write("0")
+
+        #delim after each word:frequency pair
+        words_index = words_index + 1
+
+    f.write("\n")
+    print(str(files_processed)+"\n")
+print("Done")
